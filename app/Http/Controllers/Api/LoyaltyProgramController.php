@@ -381,7 +381,7 @@ class LoyaltyProgramController extends Controller
     {
         $user_id = Auth::user()->id;
 
-        $db_LoyaltyProgramHour = LoyaltyProgramHour::where('id', $request->filled('loyalty_program_history_id'))->first();
+        $db_LoyaltyProgramHour = LoyaltyProgramHour::where('id', $request->loyalty_program_history_id)->first();
         $loyalty_program_history_services = DB::table('loyalty_program_history_services')
             ->where('loyalty_program_history_id', $db_LoyaltyProgramHour->id)
             ->select('service_id', 'service_hours', 'qty')
