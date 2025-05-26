@@ -710,7 +710,7 @@ class LoyaltyProgramController extends Controller
         
 
 
-        $user_id = Auth::user()->id;
+       echo $user_id = Auth::user()->id;
         $category_id = $request->category_id;
         $reward_type = $request->reward_type;
 
