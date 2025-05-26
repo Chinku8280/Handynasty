@@ -744,42 +744,62 @@ class LoyaltyProgramController extends Controller
             ]);
         }
         
-        $hours_per_reward = 10;
-$remaining_hours = $total_hours;
+        $remaining_hours = $total_hours;
+        $reward_applied = false;
 
-foreach ($db_LoyaltyProgramHour as $item) {
-    if ($remaining_hours <= 0) {
-        break;
-    }
+        foreach ($db_LoyaltyProgramHour as $item) {
+            // If reward already applied, just reduce hours and save balance
+            if ($reward_applied) {
+                if ($item->total_hours <= $remaining_hours) {
+                    $remaining_hours -= $item->total_hours;
+                    $item->balance_hours = 0;
+                } else {
+                    $item->balance_hours = $item->total_hours - $remaining_hours;
+                    $remaining_hours = 0;
+                }
 
-    $item_hours = $item->total_hours;
+                $item->save();
+                continue;
+            }
 
-    if ($remaining_hours >= $item_hours) {
-        // Use up this row completely
-        $remaining_hours -= $item_hours;
-        $item->balance_hours = 0;
-    } else {
-        // Use part of this row
-        $item->balance_hours = $item_hours - $remaining_hours;
-        $remaining_hours = 0;
-    }
+            // Try to apply the reward on this item only if we have 20 hours
+            if ($remaining_hours >= 20) {
+                if ($item->total_hours >= 20) {
+                    // All hours come from this row
+                    $item->balance_hours = $item->total_hours - 20;
+                } else {
+                    // Use remaining hours across rows
+                    $remaining_hours -= $item->total_hours;
+                    $item->balance_hours = 0;
+                }
 
-    // Calculate how many full rewards were earned from total hours
-    $reward_increase = floor(($total_hours - $remaining_hours) / $hours_per_reward);
+                // Apply reward based on reward_type
+                $item->free_one_reward_voucher_flag = $reward_type + 1;
 
-    // Update flag based on current reward_type
-    $new_flag = $reward_type + $reward_increase;
+                if ($item->free_one_reward_voucher_flag == 4) {
+                    $item->status = 3;
+                }
 
-    // Cap flag at 4
-    if ($new_flag >= 4) {
-        $item->free_one_reward_voucher_flag = 4;
-        $item->status = 3; // mark complete
-    } else {
-        $item->free_one_reward_voucher_flag = $new_flag;
-    }
+                $reward_applied = true;
+            } else {
+                // Not enough hours to apply reward, just calculate balance
+                if ($item->total_hours <= $remaining_hours) {
+                    $remaining_hours -= $item->total_hours;
+                    $item->balance_hours = 0;
+                } else {
+                    $item->balance_hours = $item->total_hours - $remaining_hours;
+                    $remaining_hours = 0;
+                }
 
-    $item->save();
-}
+                // Keep the original reward_type
+                $item->free_one_reward_voucher_flag = $reward_type;
+            }
+
+            $item->save();
+        }
+
+        
+        
 
 
       
