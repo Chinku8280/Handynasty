@@ -672,7 +672,11 @@ class LoyaltyProgramController extends Controller
 
         $total_hours = 0;
         foreach($db_LoyaltyProgramHour as $item){
-            $total_hours += $item->total_hours;
+            if(!empty($item->balance_hours)){
+                $total_hours += $item->balance_hours;
+            }else{
+                $total_hours += $item->total_hours;
+            }
         }
 
 

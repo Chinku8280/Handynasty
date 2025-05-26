@@ -43,9 +43,13 @@ class LoyaltyProgramController extends Controller
 
         $total_hours = 0;
         foreach ($db_LoyaltyProgramHour as $item) {
-            $total_hours += $item->total_hours;
+            if(!empty($item->balance_hours)){
+                $total_hours += $item->balance_hours;
+            }else{
+                $total_hours += $item->total_hours;
+            }
         }
-
+        
         $totalCircles = 20;
         $hoursPerCircle = $this->get_hours_per_stamp(); // e.g., 1
         $maxUsableHours = $totalCircles * $hoursPerCircle;
@@ -67,7 +71,17 @@ class LoyaltyProgramController extends Controller
             while ($historyIndex < count($db_LoyaltyProgramHour) && $circleFilled < $hoursPerCircle) {
                 $entry = $db_LoyaltyProgramHour[$historyIndex];
 
-                $take = min($entry->total_hours, $hoursPerCircle - $circleFilled);
+                // $take = min($entry->total_hours, $hoursPerCircle - $circleFilled);
+                if(!empty($entry->balance_hours)){
+                    $available = $entry->balance_hours;
+                }else{
+                    $available = $entry->total_hours;
+                }
+                $take = min($available, $hoursPerCircle - $circleFilled, $remainingHours); // <-- ADDED $remainingHours
+
+                if ($take <= 0) {
+                    break;
+                }
                 $circleFilled += $take;
                 $remainingHours -= $take;
 
@@ -674,6 +688,127 @@ class LoyaltyProgramController extends Controller
 
     public function loyalty_program_reward_voucher(Request $request)
     {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'category_id'   =>  'required',
+                'reward_type'   =>  'required'
+            ],
+            [],
+            [
+                'category_id' => 'Categories'
+            ]
+        );
+
+        if ($validator->fails()) {
+            $errors = $validator->errors()->all();
+            foreach ($errors as $item) {
+                return response()->json(['status' => false, 'message' => $item]);
+            }
+        }
+
+        
+
+
+        $user_id = Auth::user()->id;
+        $category_id = $request->category_id;
+        $reward_type = $request->reward_type;
+
+        $category = Category::find($category_id);
+        $category_name = $category->name ?? '';
+
+        $db_LoyaltyProgramHour = LoyaltyProgramHour::where('user_id', $user_id)
+        ->where('category_id', $category_id)
+        ->where('status', 1)
+        ->get();
+
+        $total_hours = 20;
+        $total_hours_table = 0;
+        foreach($db_LoyaltyProgramHour as $item){
+            if(!empty($item->balance_hours)){
+                $total_hours_table +=$item->balance_hours;
+            }else{
+                $total_hours_table +=$item->total_hours;
+            }
+        }
+        // echo $total_hours;
+        if ($total_hours_table <= 10 && $reward_type == 1) {
+            return response()->json([
+                'status' => false,
+                'message' => 'You total hours is less than 10'
+            ]);
+        }else if (($total_hours_table >= 10 && $total_hours_table < 20) && ($reward_type == 2 || $reward_type == 3)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'You total hours is less than 20'
+            ]);
+        }
+        
+        $hours_per_reward = 10;
+$remaining_hours = $total_hours;
+
+foreach ($db_LoyaltyProgramHour as $item) {
+    if ($remaining_hours <= 0) {
+        break;
+    }
+
+    $item_hours = $item->total_hours;
+
+    if ($remaining_hours >= $item_hours) {
+        // Use up this row completely
+        $remaining_hours -= $item_hours;
+        $item->balance_hours = 0;
+    } else {
+        // Use part of this row
+        $item->balance_hours = $item_hours - $remaining_hours;
+        $remaining_hours = 0;
+    }
+
+    // Calculate how many full rewards were earned from total hours
+    $reward_increase = floor(($total_hours - $remaining_hours) / $hours_per_reward);
+
+    // Update flag based on current reward_type
+    $new_flag = $reward_type + $reward_increase;
+
+    // Cap flag at 4
+    if ($new_flag >= 4) {
+        $item->free_one_reward_voucher_flag = 4;
+        $item->status = 3; // mark complete
+    } else {
+        $item->free_one_reward_voucher_flag = $new_flag;
+    }
+
+    $item->save();
+}
+
+
+      
+        // if ($db_LoyaltyProgramHour) {
+        //     foreach($db_LoyaltyProgramHour as $item){
+        //        // $item->free_one_reward_voucher_flag = 2;
+        //        if($total_hours > 20){
+        //             $total_hours -= $item->total_hours;
+        //             $item->balance_hours = 0;
+        //         }else{
+        //             $total_hours = 20 - $total_hours;
+        //             $item->balance_hours = 20 - $total_hours;
+        //         }
+                
+        //         $item->save();
+        //     }
+        // } else {
+        //     return response()->json([
+        //         'status' => false,
+        //         'message' => 'Data not found'
+        //     ]);
+        // }
+
+
+        
+        
+        // echo $total_hours;
+
+        exit;
         $validator = Validator::make(
             $request->all(),
             [
